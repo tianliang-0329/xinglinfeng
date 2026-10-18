@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>致杏林风：雨停了，路还长</title>
+    <style>
+        :root {
+            --primary: #2E4D28; 
+            --text: #3E4A3A;    
+            --accent-yellow: #C99B5B; 
+            --accent-green: #5E8B63;  
+            --bg-body: #DEE7D9; 
+            --bg-card: #F6F8F3; 
+            --quote-bg: #EBF1E8; 
+            --font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", STHeiti, "Microsoft Yahei", Tahoma, Simsun, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-body);
+            font-family: var(--font-family);
+            color: var(--text);
+            line-height: 1.9;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+            position: relative;
+            height: 100vh;
+        }
+
+        body.scrollable {
+            height: auto;
+            overflow-y: auto;
+        }
+
+        /* --- 音乐控制按钮 --- */
+        #music-control {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(255, 255, 255, 0.85);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(46, 77, 40, 0.15);
+            cursor: pointer;
+            z-index: 10000;
+            transition: transform 0.3s, background-color 0.3s;
+            border: 1px solid rgba(94, 139, 99, 0.3);
+            backdrop-filter: blur(5px);
+        }
+
+        #music-control:hover { transform: scale(1.1); background-color: #fff; }
+        #music-control.playing::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--accent-green);
+            animation: ripple 1.5s infinite ease-out;
+        }
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        .music-icon { font-size: 22px; color: var(--primary); }
+
+        /* --- 开信封动画层 --- */
+        #envelope-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(46, 77, 40, 0.4);
+            backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; transition: opacity 1s ease, visibility 1s ease;
+        }
+        #envelope-overlay.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
+        .envelope-wrapper {
+            position: relative; width: 320px; height: 220px;
+            perspective: 1000px; cursor: pointer; transition: transform 0.5s;
+        }
+        .envelope-wrapper:hover { transform: translateY(-5px); }
+        .envelope-base {
+            position: absolute; width: 100%; height: 100%;
+            background: #FDFBF7; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .envelope-base::before, .envelope-base::after { content: ''; position: absolute; bottom: 0; border-style: solid; }
+        .envelope-base::before { left: 0; border-width: 0 0 220px 160px; border-color: transparent transparent #EAE3D9 transparent; border-radius: 0 0 0 10px; z-index: 2; }
+        .envelope-base::after { right: 0; border-width: 0 160px 220px 0; border-color: transparent #F4EFE6 transparent transparent; border-radius: 0 0 10px 0; z-index: 3; }
+        .envelope-flap {
+            position: absolute; top: 0; left: 0; width: 0; height: 0;
+            border-left: 160px solid transparent; border-right: 160px solid transparent;
+            border-top: 130px solid #FDFBF7; transform-origin: top;
+            transition: transform 0.8s ease-in-out, border-color 0.8s;
+            z-index: 4; border-radius: 10px 10px 0 0;
+        }
+        .letter-paper {
+            position: absolute; top: 20px; left: 20px; width: 280px; height: 180px;
+            background: #fff; border-radius: 5px; z-index: 1;
+            transition: transform 1s cubic-bezier(0.5, 0, 0, 1);
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: flex; justify-content: center; align-items: center;
+            padding: 20px; box-sizing: border-box;
+        }
+        .letter-paper p { margin: 0; color: var(--primary); font-weight: 600; font-size: 18px; text-align: center; letter-spacing: 2px; }
+        .click-hint {
+            position: absolute; bottom: -40px; width: 100%; text-align: center;
+            color: #FDFBF7; font-size: 14px; letter-spacing: 2px; animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        .envelope-wrapper.open .envelope-flap { transform: rotateX(180deg); border-top-color: #F4EFE6; z-index: 1; }
+        .envelope-wrapper.open .letter-paper { transform: translateY(-120px); z-index: 5; }
+        .envelope-wrapper.open { opacity: 0; transition: opacity 1s 1s, transform 1s 1s; transform: translateY(-50px); }
+
+        /* --- 树叶动画层 --- */
+        #leaf-container {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; z-index: 999; overflow: hidden;
+        }
+        .leaf { position: absolute; top: -50px; font-size: 24px; opacity: 0.4; animation: fall linear forwards; }
+        @keyframes fall {
+            0% { transform: translateY(-50px) rotate(0deg) translateX(0); opacity: 0; }
+            10% { opacity: 0.4; }
+            90% { opacity: 0.4; }
+            100% { transform: translateY(105vh) rotate(360deg) translateX(50px); opacity: 0; }
+        }
+
+        /* --- 主容器 --- */
+        .container {
+            position: relative; z-index: 1; max-width: 640px; margin: 40px auto;
+            background-color: var(--bg-card); padding: 45px 35px;
+            box-shadow: 0 15px 40px rgba(46, 77, 40, 0.12);
+            border-radius: 16px; border: 1px solid rgba(255,255,255,0.6);
+            opacity: 0; transform: translateY(20px);
+            transition: opacity 1.5s ease, transform 1.5s ease;
+        }
+        .container.show { opacity: 1; transform: translateY(0); }
+
+        .header { text-align: center; margin-bottom: 45px; }
+        .header h1 { font-size: 24px; color: var(--primary); font-weight: 600; letter-spacing: 1.5px; margin-bottom: 12px; }
+        .header p { font-size: 15px; color: var(--accent-yellow); font-weight: 500; letter-spacing: 2px; }
+
+        .reveal { opacity: 0; transform: translateY(30px); transition: all 0.9s cubic-bezier(0.5, 0, 0, 1); }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+
+        p { margin-bottom: 22px; font-size: 16px; text-align: justify; color: var(--text); }
+        strong { font-weight: 600; color: var(--primary); }
+
+        .quote-box {
+            background: var(--quote-bg); border-left: 5px solid var(--accent-yellow);
+            padding: 22px; margin: 35px 0; border-radius: 0 12px 12px 0;
+            font-size: 16px; color: var(--primary); box-shadow: 0 4px 15px rgba(201, 155, 91, 0.08);
+        }
+        .quote-green {
+            border-left-color: var(--accent-green); background: #E4EBE1; box-shadow: 0 4px 15px rgba(94, 139, 99, 0.08);
+        }
+        .parallel-structure {
+            text-align: center; margin: 35px 0; padding: 25px 20px;
+            background: #EAF2E6; border-radius: 16px; border: 1px dashed #AECBA8;
+        }
+        .parallel-structure p { text-align: center; margin-bottom: 12px; color: var(--primary); font-weight: 600; font-size: 16.5px; }
+        .parallel-structure p:last-child { margin-bottom: 0; }
+
+        .divider { height: 1px; background: linear-gradient(to right, transparent, #C8D6C5, transparent); margin: 45px 0; }
+        .name { color: var(--accent-green); font-weight: 600; padding: 0 2px; }
+
+        /* --- 问卷回音壁板块 --- */
+        .survey-section { margin-top: 60px; border-top: 2px dashed #AECBA8; padding-top: 40px; }
+        .survey-title { text-align: center; font-size: 20px; color: var(--primary); font-weight: 600; margin-bottom: 10px; letter-spacing: 2px; }
+        .survey-subtitle { text-align: center; font-size: 14px; color: #7A8E76; margin-bottom: 30px; }
+
+        .data-bar-container {
+            background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        }
+        .data-item { display: flex; align-items: center; margin-bottom: 15px; font-size: 15px; }
+        .data-item:last-child { margin-bottom: 0; }
+        .data-label { width: 110px; font-weight: 600; color: var(--primary); font-size: 14px; }
+        .data-track { flex-grow: 1; background: #EAF2E6; height: 12px; border-radius: 6px; overflow: hidden; position: relative; }
+        .data-fill { height: 100%; background: var(--accent-green); border-radius: 6px; width: 0; transition: width 1.5s cubic-bezier(0.5, 0, 0, 1); }
+        .data-fill.yellow { background: var(--accent-yellow); }
+
+        .quote-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+        .quote-card {
+            background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 6px 20px rgba(94, 139, 99, 0.08);
+            position: relative; border-top: 4px solid var(--accent-green); transition: transform 0.3s;
+        }
+        .quote-card:hover { transform: translateY(-5px); }
+        .quote-card.yellow { border-top-color: var(--accent-yellow); }
+        .quote-card::before { content: "“"; position: absolute; top: 10px; left: 15px; font-size: 40px; color: #EAF2E6; font-family: serif; line-height: 1; z-index: 0; }
+        .quote-card p { position: relative; z-index: 1; font-size: 14.5px; color: #4A4A4A; margin: 0; line-height: 1.7; }
+        .quote-author { display: block; text-align: right; margin-top: 15px; font-size: 13px; color: #999; font-style: italic; }
+
+        /* --- 时光机（回忆聊天记录）板块 --- */
+        .memory-section {
+            margin-top: 60px;
+            border-top: 2px dashed #AECBA8;
+            padding-top: 40px;
+        }
+        .memory-title {
+            text-align: center; font-size: 20px; color: var(--primary); font-weight: 600; margin-bottom: 30px; letter-spacing: 2px;
+        }
+        .chat-container {
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        .chat-bubble {
+            background: #F9FCF8; padding: 18px 20px; border-radius: 12px;
+            border-left: 4px solid var(--accent-green); font-size: 14.5px; color: #4A4A4A;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02); max-width: 90%;
+        }
+        .chat-bubble.right {
+            align-self: flex-end; background: #FFF9F0; border-left: none; border-right: 4px solid var(--accent-yellow); text-align: right;
+        }
+        .chat-sender { font-weight: 600; color: var(--accent-green); font-size: 13px; margin-bottom: 5px; }
+        .chat-sender.right { color: var(--accent-yellow); }
+
+        .footer { text-align: center; margin-top: 55px; padding-top: 25px; border-top: 1px dashed #C8D6C5; }
+        .footer p { text-align: center; font-weight: 600; color: var(--primary); font-size: 18px; letter-spacing: 1.5px; margin-bottom: 10px; }
+
+        @media (max-width: 480px) {
+            body { padding: 10px; }
+            .container { padding: 35px 22px; margin: 15px auto; }
+            p { font-size: 15px; }
+            .quote-box, .parallel-structure { padding: 18px 15px; }
+            .envelope-wrapper { transform: scale(0.85); }
+            .quote-grid { grid-template-columns: 1fr; }
+            #music-control { bottom: 20px; right: 20px; width: 44px; height: 44px; }
+            .chat-bubble { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 音乐控制按钮 -->
+<div id="music-control" style="display: none;" onclick="toggleMusic()">
+    <span class="music-icon" id="music-icon">🔇</span>
+</div>
+
+<!-- 背景音乐 -->
+<audio id="bgm" loop>
+    <source src="bgm.mp3" type="audio/mpeg">
+    您的浏览器不支持音频播放。
+</audio>
+
+<!-- 开信封动画 -->
+<div id="envelope-overlay">
+    <div class="envelope-wrapper" id="envelope" onclick="openEnvelope()">
+        <div class="envelope-base"></div>
+        <div class="letter-paper">
+            <p>致杏林风的大家<br><span style="font-size:14px;color:#5E8B63;">点击拆开</span></p>
+        </div>
+        <div class="envelope-flap"></div>
+        <div class="click-hint">✉️ 请点击信封开启 ✉️</div>
+    </div>
+</div>
+
+<!-- 树叶动画层 -->
+<div id="leaf-container"></div>
+
+<!-- 正文 -->
+<div class="container" id="main-content">
+    <div class="header">
+        <h1>致杏林风的大家</h1>
+        <p>雨停了，路还长 🍃</p>
+    </div>
+
+    <div class="content">
+        <p class="reveal">二审结束以后，我有很多话想跟大家说。想了很久，还是觉得不能就这么过去了。大家一起做了这么多事，至少应该好好地说一说。</p>
+
+        <p class="reveal">首先，想认真地跟大家说一声对不起。</p>
+
+        <p class="reveal">这个舞台剧最开始是我们在团建上提出来的，也是我们把大家一个个拉进来的。我当时觉得故事很好，希望能做一个有意思、也有温度的舞台剧。但我确实把事情想得太简单了，没有足够早地考虑时长、舞台调度、表演效果和排练要求，让大家投入了很多时间之后，才开始认真面对这些问题。这是我作为发起者应该承担的责任。</p>
+
+        <p class="reveal">关于二审的结果，我也想说说自己的理解。根据目前了解到的情况，迎新晚会可能从一开始就没有给舞台剧留下太多空间。晚会有自己的定位，需要考虑时长、现场效果和整体完成度。所以，这次没有通过，可能既有我们在剧本和表演上的不足，也有节目形式与晚会需求不匹配的原因。毕竟一棵松树，不是把它裁短，就能开出玫瑰。</p>
+
+        <p class="reveal">我不是想否认老师对我们直接的否定，只是希望大家不要把这次结果简单地理解成我们所有人都不够好。我们确实有很多地方没有做好，但一个节目的去留，也不完全由参与其中的每个人决定。</p>
+
+        <div class="divider reveal"></div>
+
+        <p class="reveal">所以，在说其他的之前，我想先认真地谢谢每一个人。</p>
+
+        <p class="reveal"><span class="name">子玉</span>，辛苦你了。一直是你在协调时间、安排各个小组、处理排练中的问题。没有你从无到有地组织大家，就根本不会有所谓的表演。</p>
+
+        <p class="reveal"><span class="name">小洁、承俊、子晗</span>，谢谢你们一直陪我打磨剧本。一个笑点怎么设计才不俗套，一句台词为什么读起来不自然，一个动作怎样安排才有戏，你们都认真琢磨过。我不管文艺部的同学怎么评价，我只知道，你们想让人物更真实、让故事更有温度，这些心思青志的每个人都看见了。</p>
+
+        <p class="reveal"><span class="name">恩凯、岩松</span>，作为主演，你们背了那么多台词、参加了那么多排练，最后还要面对直接的批评。几分钟的舞台呈现不能概括你们所有一切的付出。谢谢你们愿意代替我们站到台前。</p>
+
+        <p class="reveal"><span class="name">铭灿、彦澍、心怡、露姚、雯卿</span>，谢谢你们一直以来的热情，以及在问卷和实际行动中表现出的认真与坚定。<span class="name">馨怡、静怡</span>，也不要觉得自己做得不够多。大家参与的方式或许不同，但每个人都在这件事里留下了自己的位置。</p>
+
+        <p class="reveal">大一的弟弟妹妹们，谢谢你们刚进入大学，就愿意拿出时间和精力，陪大家尝试一件陌生的事情。我很珍惜你们的信任，也不希望你们因为这一次的结果，就觉得自己进入大学做的第一件事没有做好。</p>
+
+        <p class="reveal"><span class="name">欣怡、煦育、昊宇、岩松、舒夏、启夏、敬翔</span>，也谢谢你们在大二课业繁忙的时候，仍然愿意抽出时间陪我们做这件事。能把大家的时间凑到一起，本来就很不容易。</p>
+
+        <div class="divider reveal"></div>
+
+        <p class="reveal">我们这个剧讲的是林远在别人的期待和自己的生活之间，慢慢寻找自己。但现在回头看，我们好像也正在经历自己的那段路。</p>
+
+        <p class="reveal">我们曾经很认真地想一个情节，改一句台词，为一个笑点反复排练，也曾经以为，只要再努力一些，这个故事就能走到最后。可现实并不总是这样。有些事情，即使你很喜欢、很投入、很想把它做好，最后也可能没有一个期待中的结果。</p>
+
+        <p class="reveal"><strong>我想，我们难免会做一些没有回报的事情。</strong></p>
+
+        <p class="reveal">不是每一次努力都能换来机会，<br>
+        不是每一份认真都会被别人看见，<br>
+        也不是每一件我们珍视的事情，都能按照想象中的样子体面地结束。</p>
+
+        <p class="reveal">我们花那么多时间排这部剧，最后它可能根本没机会出现在迎新晚会的聚光灯下；<br>
+        我们字斟句酌打磨过的台词，可能根本不会被台下的观众听见；<br>
+        我们反复练习的走位和动作，可能也注定无法闪耀在舞台的灯光里。</p>
+
+        <p class="reveal">如果只看最后的结果，这确实太可惜了。</p>
+
+        <p class="reveal">我知道大家不会被这件事"打倒"，但我也知道要让大家不感到失落是不可能的，</p>
+
+        <p class="reveal"><strong>失落过，是因为努力过。</strong></p>
+
+        <div class="divider reveal"></div>
+
+        <p class="reveal">可不论如何，我还是想贪心地和大家分享一点我的感悟，特别是想告诉大一的弟弟妹妹：</p>
+
+        <div class="quote-box reveal">
+            <p style="margin-bottom: 0; text-align: center; font-weight: 600; color: var(--accent-yellow); font-size: 17px;">
+                有些东西注定是没有价值的，不是因为它没有意义，<br>它只是没有标签，能决定它的价格的只有你自己。
+            </p>
+        </div>
+
+        <p class="reveal" style="text-align: center; font-size: 17px; margin: 30px 0; color: var(--primary); font-weight: 500;">
+            🌲 一棵松树没有在这个舞台上开出玫瑰，<br>不代表它没有好好生长过。🌹
+        </p>
+
+        <p class="reveal">大学里，从来不缺"差不多就行"的作业，不缺AI一键生成的漂亮PPT，也不缺为了学分凑在一起、却谁都不愿多出一点力的小组。</p>
+
+        <div class="parallel-structure reveal">
+            <p>真正稀缺的，</p>
+            <p>是我们愿意毫无保留投入的心血，</p>
+            <p>是交付出去的真情实意，</p>
+            <p>是为了"B是Best"这样一个笑点费尽心力、反复打磨的较真；</p>
+            <p>更是过程里的那些欢笑、争论和灵感迸发的那些瞬间，</p>
+            <p>是一群明明知道可能没有结果，却依然愿意聚在一起走下去的朋友。</p>
+        </div>
+
+        <p class="reveal">只要我们在这个过程中认真过、上心过、投入过，它就一定会在我们心里留下印记。</p>
+
+        <p class="reveal">那个印记，不是简历上的一行字、不是综测上的0.15、不是某次简单的成功或失败，<strong>而是你之所以成为你、你之所以与众不同的人生证明。</strong></p>
+
+        <p class="reveal">一如林远，他没拿到那个标准答案，但他找到了自己。</p>
+
+        <!-- === 问卷回音壁 板块 === -->
+        <div class="survey-section reveal" id="survey-anchor">
+            <div class="survey-title">我们的回音壁</div>
+            <div class="survey-subtitle">隐去名字，但每一句都是我们一起走过的证明</div>
+
+            <!-- 问卷数据可视化 -->
+            <div class="data-bar-container">
+                <div class="data-item">
+                    <div class="data-label">我不甘心，还想试试</div>
+                    <div class="data-track"><div class="data-fill" data-width="85%"></div></div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">希望能善始善终</div>
+                    <div class="data-track"><div class="data-fill yellow" data-width="95%"></div></div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">愿意一起吃苦大改</div>
+                    <div class="data-track"><div class="data-fill" data-width="75%"></div></div>
+                </div>
+            </div>
+
+            <!-- 语录卡片 -->
+            <div class="quote-grid">
+                <div class="quote-card">
+                    <p>“怕输才会紧张，想赢才会兴奋。如果现在就放弃，你失去的不是一个结局，是你本来可以拥有的一段热血。”</p>
+                    <span class="quote-author">—— 来自青志的一位“热血笨蛋”</span>
+                </div>
+                <div class="quote-card yellow">
+                    <p>“编剧看着自己的本子就像自己的孩子，可恶的人类竟然说是AI写的气死我也，不想让孩子夭折好吧……”</p>
+                    <span class="quote-author">—— 来自心疼本子的编剧组</span>
+                </div>
+                <div class="quote-card">
+                    <p>“不管最后成功与否，至少大家努力过了，各位都不要太难过，没被认可不代表不是优秀的作品。”</p>
+                    <span class="quote-author">—— 来自互相打气的群演</span>
+                </div>
+                <div class="quote-card yellow">
+                    <p>“你不仅仅是林远，你也是你自己。你在这段时间所用的功，所承受的压力，我认为你一定是林远的最佳人选。”</p>
+                    <span class="quote-author">—— 致我们最好的主演</span>
+                </div>
+                <div class="quote-card">
+                    <p>“感觉加入了导演组但是这一段时间付出的远少于大家。如果有需要我的地方希望可以帮上忙呀。就算会有点累我也希望能做点有用的。”</p>
+                    <span class="quote-author">—— 来自默默陪伴的幕后</span>
+                </div>
+                <div class="quote-card yellow">
+                    <p>“即使没有任何功利的回报，我也希望能够善始善终，留下一段回忆。这个剧本真的写得很好，很多次都让我从焦虑的情绪里走了出来。”</p>
+                    <span class="quote-author">—— 来自被治愈的我们</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- === 时光机（回忆聊天记录）板块 === -->
+        <div class="memory-section reveal">
+            <div class="memory-title">我们的时光机</div>
+            <div class="chat-container">
+                <div class="chat-bubble">
+                    <div class="chat-sender">9月19日 群聊日常</div>
+                    “大导大编剧和影帝影后们今天都辛苦啦！！！今天好好休息，咱们一审势在必得！”
+                </div>
+                <div class="chat-bubble right">
+                    <div class="chat-sender right">主编剧的进度</div>
+                    “主要改了三五六幕，大家一定要通看一遍。凭大家的才华和能力，我们可以成为几年来最好的语言类节目。”
+                </div>
+                <div class="chat-bubble">
+                    <div class="chat-sender">10月3日 录音突击战</div>
+                    “大家仔细阅读之后录制，注意吐词清晰、情绪饱满、多录几遍取最优版本提交。子晗5点后没时间，可以来录一遍视频先。”
+                </div>
+                <div class="chat-bubble right">
+                    <div class="chat-sender right">10月3日 最后的叮嘱</div>
+                    “10.17二审，中间只有2-3次排练机会。大家在练习时一定要演出来，注意肢体语言。大家假期愉快~”
+                </div>
+                <div class="chat-bubble" style="border-left-color: #C99B5B; background: #FDFBF7;">
+                    <div class="chat-sender" style="color: #C99B5B;">深夜的释怀</div>
+                    “我真的是看得一把鼻涕一把泪。这件事情的意义，已经远不止于参与一次迎新晚会了。”
+                </div>
+            </div>
+        </div>
+        <!-- === 回忆板块结束 === -->
+
+        <div class="divider reveal"></div>
+
+        <p class="reveal">最后，比起再次说"对不起"，我还是更想说"谢谢你"。</p>
+
+        <p class="reveal">谢谢你们愿意相信我们最开始稚嫩的想法，也谢谢你们把自己的时间和心力放进这个故事里。</p>
+
+        <p class="reveal">我没有觉得大家的付出不值得，也没有因为二审的结果，就觉得我们这段时间做的事情很可笑。</p>
+
+        <p class="reveal">我们都看见了它的意义在哪里。</p>
+
+        <div class="quote-box quote-green reveal">
+            <p style="margin-bottom: 0; font-style: italic; color: var(--primary); font-weight: 500;">
+                "一次失利，不是对你人生的否定，一次怀疑，不过是你成长的印记。人生的道路本就曲折前行。这条路是否通向成功并不重要，重要的是这里有独属于你的风景。"
+            </p>
+        </div>
+
+        <div class="footer reveal">
+            <p>不论如何，我们还是青志，还是杏林风。</p>
+            <p>愿杏林之风吹遍每一个阳光照耀的地方 🍃</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 音乐控制逻辑
+    const bgm = document.getElementById('bgm');
+    const musicControl = document.getElementById('music-control');
+    const musicIcon = document.getElementById('music-icon');
+    let isPlaying = false;
+    
+    // 【此处已调小音量】：将原来的 0.4 改成 0.2 (20%的音量)
+    bgm.volume = 0.2;
+
+    function playMusic() {
+        bgm.play().then(() => {
+            isPlaying = true;
+            musicIcon.innerText = "🎵";
+            musicControl.classList.add('playing');
+        }).catch(err => {
+            console.log("浏览器阻止了自动播放，需用户手动交互", err);
+            isPlaying = false;
+            musicIcon.innerText = "🔇";
+            musicControl.classList.remove('playing');
+        });
+    }
+
+    function toggleMusic() {
+        if (isPlaying) {
+            bgm.pause();
+            musicIcon.innerText = "🔇";
+            musicControl.classList.remove('playing');
+            isPlaying = false;
+        } else {
+            playMusic();
+        }
+    }
+
+    // 开信封动画逻辑
+    function openEnvelope() {
+        const envelope = document.getElementById('envelope');
+        const overlay = document.getElementById('envelope-overlay');
+        const mainContent = document.getElementById('main-content');
+        
+        if(envelope.classList.contains('open')) return;
+
+        playMusic();
+
+        envelope.classList.add('open');
+
+        setTimeout(() => {
+            overlay.classList.add('fade-out');
+            mainContent.classList.add('show');
+            document.body.classList.add('scrollable');
+            
+            musicControl.style.display = "flex";
+
+            setTimeout(() => {
+                window.dispatchEvent(new Event('scroll'));
+            }, 100);
+        }, 1800); 
+    }
+
+    // 滚动监听与进度条动画
+    document.addEventListener("DOMContentLoaded", function() {
+        const reveals = document.querySelectorAll('.reveal');
+        const fills = document.querySelectorAll('.data-fill');
+        
+        const revealOptions = {
+            threshold: 0.1,
+            rootMargin: "0px 0px -50px 0px"
+        };
+
+        const revealOnScroll = new IntersectionObserver(function(entries, observer) {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) {
+                    return;
+                } else {
+                    entry.target.classList.add('active');
+                    
+                    if(entry.target.id === 'survey-anchor') {
+                        fills.forEach(fill => {
+                            fill.style.width = fill.getAttribute('data-width');
+                        });
+                    }
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, revealOptions);
+
+        reveals.forEach(reveal => {
+            revealOnScroll.observe(reveal);
+        });
+
+        // 生成落叶
+        const leafContainer = document.getElementById('leaf-container');
+        const leaves = ['🍂', '🍃', '🌿']; 
+
+        function createLeaf() {
+            const leaf = document.createElement('div');
+            leaf.classList.add('leaf');
+            leaf.innerText = leaves[Math.floor(Math.random() * leaves.length)];
+            leaf.style.left = Math.random() * 100 + 'vw';
+            const duration = Math.random() * 7 + 8;
+            leaf.style.animationDuration = duration + 's';
+            const size = Math.random() * 14 + 16; 
+            leaf.style.fontSize = size + 'px';
+            leaf.style.animationDelay = Math.random() * 5 + 's';
+
+            leafContainer.appendChild(leaf);
+
+            setTimeout(() => {
+                leaf.remove();
+            }, duration * 1000 + 5000);
+        }
+
+        setInterval(createLeaf, 600);
+        for(let i=0; i<8; i++){
+            setTimeout(createLeaf, i * 200);
+        }
+    });
+</script>
+
+</body>
+</html>
